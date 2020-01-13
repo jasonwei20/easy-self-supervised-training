@@ -1,2 +1,7 @@
+SHORTCUTS.md
 data/*
-
+deepslide/*
+logs/*
+checkpoints/*
+code/voc_rotation/old/*
+*.pyc
