@@ -37,8 +37,6 @@ def plot_vanilla_examples():
     plt.ylabel("Accuracy")
     plt.savefig(vanilla_output_path, dpi=400)
 
-def print_distribution():
-
 if __name__ == "__main__":
 
     plot_vanilla_examples()
