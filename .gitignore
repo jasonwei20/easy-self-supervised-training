@@ -4,4 +4,6 @@ deepslide/*
 logs/*
 checkpoints/*
 code/voc_rotation/old/*
+plots/*
+outputs/*
 *.pyc

@@ -10,11 +10,27 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision
+from torchvision import datasets
 from PIL import Image
 from torch.optim import lr_scheduler
 from torchvision import (datasets, transforms)
 
 from utils import (get_image_paths, get_subfolder_paths)
+
+class ImageFolderWithPaths(datasets.ImageFolder):
+    """Custom dataset that includes image file paths. Extends
+    torchvision.datasets.ImageFolder
+    """
+
+    # override the __getitem__ method. this is the method that dataloader calls
+    def __getitem__(self, index):
+        # this is what ImageFolder normally returns 
+        original_tuple = super(ImageFolderWithPaths, self).__getitem__(index)
+        # the image file path
+        path = self.imgs[index][0]
+        # make a new tuple that includes original and the path
+        tuple_with_path = (original_tuple + (path,))
+        return tuple_with_path
 
 ###########################################
 #             MISC FUNCTIONS              #
@@ -557,62 +573,63 @@ def get_predictions(patches_eval_folder: Path, output_folder: Path,
 
     start = time.time()
     # Load the data for each folder.
-    image_folders = get_subfolder_paths(folder=patches_eval_folder)
+    # image_folders = get_subfolder_paths(folder=patches_eval_folder)
+    image_folder = patches_eval_folder
 
     # Where we want to write out the predictions.
     # Confirm the output directory exists.
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    # For each WSI.
-    for image_folder in image_folders:
+    dataset = ImageFolderWithPaths(str(image_folder))
 
-        # Temporary fix. Need not to make folders with no crops.
-        try:
-            # Load the image dataset.
-            dataloader = torch.utils.data.DataLoader(
-                dataset=datasets.ImageFolder(
-                    root=str(image_folder),
-                    transform=transforms.Compose(transforms=[
-                        transforms.ToTensor(),
-                        transforms.Normalize(mean=path_mean, std=path_std)
-                    ])),
-                batch_size=batch_size,
-                shuffle=False,
-                num_workers=num_workers)
-        except RuntimeError:
-            print(
-                "WARNING: One of the image directories is empty. Skipping this directory."
-            )
-            continue
+    # Temporary fix. Need not to make folders with no crops.
+    try:
+        # Load the image dataset.
+        dataloader = torch.utils.data.DataLoader(
+            dataset=datasets.ImageFolder(
+                root=str(image_folder),
+                transform=transforms.Compose(transforms=[
+                    transforms.Resize((224, 224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=path_mean, std=path_std)
+                ])),
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers)
+    except RuntimeError:
+        print(
+            "WARNING: One of the image directories is empty. Skipping this directory."
+        )
 
-        num_test_image_windows = len(dataloader) * batch_size
+    num_test_images = len(dataloader) * batch_size
 
-        # Load the image names so we know the coordinates of the patches we are predicting.
-        image_folder = image_folder.joinpath(image_folder.name)
-        window_names = get_image_paths(folder=image_folder)
+    # Load the image names so we know the coordinates of the patches we are predicting.
+    # image_folder = image_folder.joinpath(image_folder.name)
+    images_names = get_image_paths(folder=image_folder)
 
-        print(f"testing on {num_test_image_windows} crops from {image_folder}")
+    print(f"testing on {num_test_images} images from {image_folder}")
 
-        with output_folder.joinpath(f"{image_folder.name}.csv").open(
-                mode="w") as writer:
+    test_label_to_class = {0:"0", 1:"180", 2:"270", 3:"90"}
 
-            writer.write("x,y,prediction,confidence\n")
+    with output_folder.joinpath(f"{image_folder.name}.csv").open(mode="w") as writer:
 
-            # Loop through all of the patches.
-            for batch_num, (test_inputs, test_labels) in enumerate(dataloader):
-                batch_window_names = window_names[batch_num *
-                                                  batch_size:batch_num *
-                                                  batch_size + batch_size]
+        writer.write("ground_truth,prediction,confidence\n")
 
-                confidences, test_preds = torch.max(nn.Softmax(dim=1)(model(
-                    test_inputs.to(device=device))),
-                                                    dim=1)
-                for i in range(test_preds.shape[0]):
-                    # Find coordinates and predicted class.
-                    xy = batch_window_names[i].name.split(".")[0].split(";")
+        # Loop through all of the patches.
+        for batch_num, (test_inputs, test_labels) in enumerate(dataloader):
+            # print(batch_num, test_labels)
+            # batch_images_names = images_names[batch_num * batch_size : batch_num * batch_size + batch_size]
 
-                    writer.write(
-                        f"{','.join([xy[0], xy[1], f'{class_num_to_class[test_preds[i].data.item()]}', f'{confidences[i].data.item():.5f}'])}\n"
-                    )
+            confidences, test_preds = torch.max(nn.Softmax(dim=1)(model(
+                test_inputs.to(device=device))),
+                                                dim=1)
+            for i in range(test_preds.shape[0]):
+                # Find coordinates and predicted class.
+                # image_name = batch_images_names[i].name
+                # xy = batch_window_names[i].name.split(".")[0].split(";")
+
+                writer.write(
+                    f"{','.join([test_label_to_class[int(test_labels[i])], f'{class_num_to_class[test_preds[i].data.item()]}', f'{confidences[i].data.item():.5f}'])}\n"
+                )
 
     print(f"time for {patches_eval_folder}: {time.time() - start:.2f} seconds")

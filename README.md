@@ -18,3 +18,13 @@ Train the model and print out the validation loss each time.
 ```
 python code/voc_rotation/vanilla_train.py
 ```
+
+Visualize the training and validation accurary of the vanilla model.
+```
+python code/visualization/plot_training_graphs.py
+```
+
+Get the predictions and confidences for the model.
+```
+python code/voc_rotation/get_val_confidences.py
+```
