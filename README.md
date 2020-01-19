@@ -2,6 +2,19 @@
 
 ## ImageNet
 
+### Preprocess
+Copy the training set all into one folder.
+```
+python preprocess/imagenet/move_to_one_folder_train.py
+```
+And then manually copy over the validation folder since there's no subfolders.
+
+Preprocess to generate the trainval folder
+```
+python preprocess/imagenet/2_preprocess_rot.py
+```
+
+### Training
 
 
 ## Old VOC stuff
