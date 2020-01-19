@@ -632,7 +632,7 @@ def get_predictions(patches_eval_folder: Path, output_folder: Path,
                     # xy = batch_window_names[i].name.split(".")[0].split(";")
 
                     writer.write(
-                        f"{','.join([image_name, test_label_to_class[int(test_labels[i])], f'{class_num_to_class[test_preds[i].data.item()]}', f'{confidences[i].data.item():.5f}'])}\n"
+                        f"{','.join([image_name, image_folder.name, f'{class_num_to_class[test_preds[i].data.item()]}', f'{confidences[i].data.item():.5f}'])}\n"
                     )
 
     print(f"time for {patches_eval_folder}: {time.time() - start:.2f} seconds")
