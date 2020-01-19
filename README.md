@@ -1,6 +1,10 @@
 # Simple Self-Supervised Learning Experiments
 
-## Download and Preprocess Data
+## ImageNet
+
+
+
+## Old VOC stuff
 
 Get all the images into a training and validation folders.
 
@@ -32,4 +36,14 @@ python code/voc_rotation/get_val_confidences.py
 Visualize the predicted distributions of the vanilla model (now old code).
 ```
 python code/visualization/plot_predicted_distributions.py
+```
+
+Get data subsets.
+```
+python code/voc_rotation/create_data_subsets.py
+```
+
+Retrain from a certain epoch using a subset of the data.
+```
+code/voc_rotation/train_continue_correct.py
 ```
