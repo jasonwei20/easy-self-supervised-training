@@ -14,6 +14,11 @@ Preprocess to generate the trainval folder
 python preprocess/imagenet/2_preprocess_rot.py
 ```
 
+Vanilla training
+```
+python code/imagenet_rotation/vanilla_train.py
+```
+
 ### Training
 
 
