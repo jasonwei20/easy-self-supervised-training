@@ -349,7 +349,7 @@ def train_helper(model: torchvision.models.resnet.ResNet,
                 # Remaining things related to training.
                 if epoch % save_interval == 0:
                     epoch_output_path = checkpoints_folder.joinpath(
-                        f"resnet{num_layers}_e{epoch}_va{val_acc:.5f}.pt")
+                        f"resnet{num_layers}_e{epoch}_mb{minibatch_num}_va{val_acc:.5f}.pt")
 
                     # Confirm the output directory exists.
                     epoch_output_path.parent.mkdir(parents=True, exist_ok=True)
