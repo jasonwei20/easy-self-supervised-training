@@ -5,9 +5,9 @@ import numpy as np
 import imageio
 import cv2
 
-input_folder = Path("/home/brenta/scratch/data/imagenet_resized/train")
-output_folder = Path("/home/brenta/scratch/data/imagenet_rotnet/train")
-rotations = [90, 180, 270]
+# input_folder = Path("/home/brenta/scratch/data/ImageNet_100_per_class/train/n02106030/")
+input_folder = Path("/home/brenta/scratch/data/ImageNet_one_folder/train")
+output_folder = Path("/home/brenta/scratch/data/imagenet_resized/train")
 
 def get_chunks(lst, n):
     """Yield n successive chunks from lst."""
@@ -35,23 +35,12 @@ def generate_rotated_images(image_paths):
     for image_path in image_paths:
         image = cv2.imread(str(image_path))
 
-        #zero rotation
-        label = str(0)
-        image_output_folder = output_folder.joinpath(label)
-        confirm_output_folder(image_output_folder)
-        output_path = image_output_folder.joinpath(image_path.name)
+        #reshape
+        image = cv2.resize(image, dsize=(224, 224), interpolation=cv2.INTER_CUBIC)
+        confirm_output_folder(output_folder)
+        output_path = output_folder.joinpath(image_path.name)
+        # print(output_path, image.shape)
         imageio.imwrite(output_path, image)
-        # print(output_path)
-
-        for rotation in rotations:
-            label = str(rotation)
-            rotation_times = int(rotation/90)
-            rotated_image = np.rot90(image, rotation_times)
-            image_output_folder = output_folder.joinpath(label)
-            confirm_output_folder(image_output_folder)
-            output_path = image_output_folder.joinpath(image_path.name)
-            imageio.imwrite(output_path, rotated_image)
-            # print(output_path)
 
     print(len(image_paths))
 
@@ -72,4 +61,3 @@ def gen_training_data_rot():
 if __name__ == "__main__":
 
     gen_training_data_rot()
-    # generate_rotated_images(config.output_folder_val_full, config.trainval_folder_full_val, rotations)

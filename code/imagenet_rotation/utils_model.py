@@ -456,7 +456,7 @@ def train_resnet(
                            lr=learning_rate,
                            weight_decay=weight_decay)
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
-                                                patience=10, min_lr=0.000001, factor=0.3)
+                                                patience=25, min_lr=0.000001, factor=0.7)
 
     # Initialize the model.
     if resume_checkpoint:

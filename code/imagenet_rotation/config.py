@@ -46,8 +46,8 @@ parser.add_argument("--patch_size",
 parser.add_argument(
     "--train_folder",
     type=Path,
-    # default=Path("/home/brenta/scratch/data/imagenet_rotnet/"),
-    default=Path("/home/ifsdata/vlg/jason/easy-self-supervised-training/data/voc_trainval_full"),
+    default=Path("/home/brenta/scratch/data/imagenet_rotnet/"),
+    # default=Path("/home/ifsdata/vlg/jason/easy-self-supervised-training/data/voc_trainval_full"),
     help="Location of the automatically built training input folder")
 
 # Folders of patches by WSI in training set, used for finding training accuracy at WSI level.
