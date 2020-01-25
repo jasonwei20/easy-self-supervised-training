@@ -31,6 +31,7 @@ def confirm_output_folder(output_folder):
 def generate_rotated_images(input_folder, output_folder, rotations):
     image_paths = get_image_paths(input_folder)
     for image_path in image_paths:
+        print(image_path)
         image = cv2.imread(image_path)
 
         #zero rotation

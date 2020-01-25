@@ -5,8 +5,8 @@ import numpy as np
 import imageio
 import cv2
 
-input_folder = Path("/home/brenta/scratch/data/imagenet_resized/train")
-output_folder = Path("/home/brenta/scratch/data/imagenet_rotnet/train")
+input_folder = Path("/home/brenta/scratch/data/imagenet_resized/val")
+output_folder = Path("/home/brenta/scratch/data/imagenet_rotnet/val")
 rotations = [90, 180, 270]
 
 def get_chunks(lst, n):

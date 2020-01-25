@@ -6,8 +6,8 @@ import imageio
 import cv2
 
 # input_folder = Path("/home/brenta/scratch/data/ImageNet_100_per_class/train/n02106030/")
-input_folder = Path("/home/brenta/scratch/data/ImageNet_one_folder/train")
-output_folder = Path("/home/brenta/scratch/data/imagenet_resized/train")
+input_folder = Path("/home/brenta/scratch/data/ImageNet_one_folder/val")
+output_folder = Path("/home/brenta/scratch/data/imagenet_resized/val")
 
 def get_chunks(lst, n):
     """Yield n successive chunks from lst."""
