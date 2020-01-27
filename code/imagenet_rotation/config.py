@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 
-from utils import (get_classes, get_log_csv_name)
+from utils import (get_classes, get_log_csv_name, get_log_csv_training_order)
 
 # Source: https://stackoverflow.com/questions/12151306/argparse-way-to-include-default-values-in-help
 parser = argparse.ArgumentParser(
@@ -189,6 +189,7 @@ resume_checkpoint_path = args.checkpoints_folder.joinpath(args.checkpoint_file)
 
 # Named with date and time.
 log_csv = get_log_csv_name(log_folder=args.log_folder)
+train_order_csv = get_log_csv_train_order(log_folder=args.log_folder)
 
 # Does nothing if auto_select is True.
 eval_model = args.checkpoints_folder.joinpath(args.checkpoint_file)

@@ -18,7 +18,12 @@ def get_classes(folder: Path) -> List[str]:
                   key=str)
 
 
-def get_log_csv_
+def get_log_csv_train_order(log_folder: Path) -> Path:
+
+    now = datetime.datetime.now()
+
+    return log_folder.joinpath(f"log_training_order_{now.month}{now.day}{now.year}"
+                               f"_{now.hour}{now.minute}{now.second}.csv")
 
 def get_log_csv_name(log_folder: Path) -> Path:
     """

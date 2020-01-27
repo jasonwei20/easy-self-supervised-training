@@ -163,7 +163,7 @@ def print_params(train_folder: Path, num_epochs: int, num_layers: int,
                  learning_rate_decay: float, resume_checkpoint: bool,
                  resume_checkpoint_path: Path, save_interval: int,
                  checkpoints_folder: Path, pretrain: bool,
-                 log_csv: Path) -> None:
+                 log_csv: Path, train_order_csv: Path) -> None:
     """
     Print the configuration of the model.
     Args:
@@ -194,7 +194,8 @@ def print_params(train_folder: Path, num_epochs: int, num_layers: int,
           f"save_interval: {save_interval}\n"
           f"output in checkpoints_folder: {checkpoints_folder}\n"
           f"pretrain: {pretrain}\n"
-          f"log_csv: {log_csv}\n\n")
+          f"log_csv: {log_csv}\n"
+          f"train_order_csv: {train_order_csv}\n\n")
 
 
 ###########################################
@@ -207,7 +208,7 @@ def train_helper(model: torchvision.models.resnet.ResNet,
                  dataset_sizes: Dict[str, int],
                  criterion: torch.nn.modules.loss, optimizer: torch.optim,
                  scheduler: torch.optim.lr_scheduler, num_epochs: int,
-                 writer: IO, device: torch.device, start_epoch: int,
+                 writer: IO, train_order_writer: IO, device: torch.device, start_epoch: int,
                  batch_size: int, save_interval: int, checkpoints_folder: Path,
                  num_layers: int, classes: List[str],
                  num_classes: int) -> None:
@@ -222,6 +223,7 @@ def train_helper(model: torchvision.models.resnet.ResNet,
         scheduler: Scheduler to use for learning rate decay.
         start_epoch: Starting epoch for training.
         writer: Writer to write logging information.
+        train_order_writer: Writer to write the order of training examples.
         device: Device to use for running model.
         num_epochs: Total number of epochs to train for.
         batch_size: Mini-batch size to use for training.
@@ -285,6 +287,9 @@ def train_helper(model: torchvision.models.resnet.ResNet,
 
             global_minibatch_counter += 1
             epoch_minibatch_counter += 1
+
+            for path in paths:
+                train_order_writer.write(f"{path}/n")
 
             if global_minibatch_counter % 1000 == 0:
 
@@ -384,7 +389,7 @@ def train_resnet(
         train_folder: Path, batch_size: int, num_workers: int,
         device: torch.device, classes: List[str], learning_rate: float,
         weight_decay: float, learning_rate_decay: float,
-        resume_checkpoint: bool, resume_checkpoint_path: Path, log_csv: Path,
+        resume_checkpoint: bool, resume_checkpoint_path: Path, log_csv: Path, train_order_csv: Path,
         color_jitter_brightness: float, color_jitter_contrast: float,
         color_jitter_hue: float, color_jitter_saturation: float,
         path_mean: List[float], path_std: List[float], num_classes: int,
@@ -404,6 +409,7 @@ def train_resnet(
         resume_checkpoint: Resume model from checkpoint file.
         resume_checkpoint_path: Path to the checkpoint file for resuming training.
         log_csv: Name of the CSV file containing the logs.
+        training_order_csv: Name of the CSV file with the order of training examples.
         color_jitter_brightness: Random brightness jitter to use in data augmentation for ColorJitter() transform.
         color_jitter_contrast: Random contrast jitter to use in data augmentation for ColorJitter() transform.
         color_jitter_hue: Random hue jitter to use in data augmentation for ColorJitter() transform.
@@ -472,7 +478,7 @@ def train_resnet(
                  learning_rate=learning_rate,
                  learning_rate_decay=learning_rate_decay,
                  log_csv=log_csv,
-                 training_order_csv=training_order_csv,
+                 train_order_csv=train_order_csv,
                  num_epochs=num_epochs,
                  num_layers=num_layers,
                  pretrain=pretrain,
@@ -488,23 +494,26 @@ def train_resnet(
 
     with log_csv.open(mode="w") as writer:
         writer.write("epoch,minibatch,train_loss,train_acc,val_loss,val_acc\n")
-        # Train the model.
-        train_helper(model=model,
-                     dataloaders=dataloaders,
-                     dataset_sizes=dataset_sizes,
-                     criterion=nn.CrossEntropyLoss(),
-                     optimizer=optimizer,
-                     scheduler=scheduler,
-                     start_epoch=start_epoch,
-                     writer=writer,
-                     batch_size=batch_size,
-                     checkpoints_folder=checkpoints_folder,
-                     device=device,
-                     num_layers=num_layers,
-                     save_interval=save_interval,
-                     num_epochs=num_epochs,
-                     classes=classes,
-                     num_classes=num_classes)
+
+        with train_order_csv.open(mode="w") as train_order_writer:
+            # Train the model.
+            train_helper(model=model,
+                        dataloaders=dataloaders,
+                        dataset_sizes=dataset_sizes,
+                        criterion=nn.CrossEntropyLoss(),
+                        optimizer=optimizer,
+                        scheduler=scheduler,
+                        start_epoch=start_epoch,
+                        writer=writer,
+                        train_order_writer=train_order_writer,
+                        batch_size=batch_size,
+                        checkpoints_folder=checkpoints_folder,
+                        device=device,
+                        num_layers=num_layers,
+                        save_interval=save_interval,
+                        num_epochs=num_epochs,
+                        classes=classes,
+                        num_classes=num_classes)
 
 
 ###########################################
