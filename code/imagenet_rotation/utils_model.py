@@ -72,24 +72,24 @@ def calculate_confusion_matrix(all_labels: np.ndarray,
     print(cm)
 
 
-# class Random90Rotation:
-#     def __init__(self, degrees: Tuple[int] = None) -> None:
-#         """
-#         Randomly rotate the image for training. Credits to Naofumi Tomita.
-#         Args:
-#             degrees: Degrees available for rotation.
-#         """
-#         self.degrees = (0, 90, 180, 270) if (degrees is None) else degrees
+class Random90Rotation:
+    def __init__(self, degrees: Tuple[int] = None) -> None:
+        """
+        Randomly rotate the image for training. Credits to Naofumi Tomita.
+        Args:
+            degrees: Degrees available for rotation.
+        """
+        self.degrees = (0, 90, 180, 270) if (degrees is None) else degrees
 
-#     def __call__(self, im: Image) -> Image:
-#         """
-#         Produces a randomly rotated image every time the instance is called.
-#         Args:
-#             im: The image to rotate.
-#         Returns:    
-#             Randomly rotated image.
-#         """
-#         return im.rotate(angle=random.sample(population=self.degrees, k=1)[0])
+    def __call__(self, im: Image) -> Image:
+        """
+        Produces a randomly rotated image every time the instance is called.
+        Args:
+            im: The image to rotate.
+        Returns:    
+            Randomly rotated image.
+        """
+        return im.rotate(angle=random.sample(population=self.degrees, k=1)[0])
 
 
 def create_model(num_layers: int, num_classes: int,
@@ -245,8 +245,7 @@ def train_helper(model: torchvision.models.resnet.ResNet,
     val_all_predicts = torch.empty(size=(dataset_sizes["val"], ),
                                    dtype=torch.long).cpu()
 
-    minibatch_epoch_num = 0
-    minibatch_num = 0
+    global_minibatch_counter = 0
 
     # Train for specified number of epochs.
     for epoch in range(start_epoch, num_epochs):
@@ -256,10 +255,10 @@ def train_helper(model: torchvision.models.resnet.ResNet,
 
         train_running_loss = 0.0
         train_running_corrects = 0
-        minibatch_epoch_num = 0
+        epoch_minibatch_counter = 0
 
         # Train over all training data.
-        for idx, (inputs, labels) in enumerate(dataloaders["train"]):
+        for idx, (inputs, labels, paths) in enumerate(dataloaders["train"]):
             train_inputs = inputs.to(device=device)
             train_labels = labels.to(device=device)
             optimizer.zero_grad()
@@ -283,10 +282,11 @@ def train_helper(model: torchvision.models.resnet.ResNet,
 
             train_all_labels[start:end] = train_labels.detach().cpu()
             train_all_predicts[start:end] = train_preds.detach().cpu()
-            minibatch_num += 1
-            minibatch_epoch_num += 1
 
-            if minibatch_num % 100 == 0:
+            global_minibatch_counter += 1
+            epoch_minibatch_counter += 1
+
+            if global_minibatch_counter % 1000 == 0:
 
                 calculate_confusion_matrix(all_labels=train_all_labels.numpy(),
                                         all_predicts=train_all_predicts.numpy(),
@@ -294,11 +294,8 @@ def train_helper(model: torchvision.models.resnet.ResNet,
                                         num_classes=num_classes)
 
                 # Store training diagnostics.
-                train_loss = train_running_loss / (minibatch_epoch_num * batch_size)
-                train_acc = train_running_corrects / (minibatch_epoch_num * batch_size)
-
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+                train_loss = train_running_loss / (epoch_minibatch_counter * batch_size)
+                train_acc = train_running_corrects / (epoch_minibatch_counter * batch_size)
 
                 # Validation phase.
                 model.train(mode=False)
@@ -307,7 +304,7 @@ def train_helper(model: torchvision.models.resnet.ResNet,
                 val_running_corrects = 0
 
                 # Feed forward over all the validation data.
-                for idx, (val_inputs, val_labels) in enumerate(dataloaders["val"]):
+                for idx, (val_inputs, val_labels, paths) in enumerate(dataloaders["val"]):
                     val_inputs = val_inputs.to(device=device)
                     val_labels = val_labels.to(device=device)
 
@@ -340,16 +337,10 @@ def train_helper(model: torchvision.models.resnet.ResNet,
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
-                scheduler.step(val_loss)
-
-                current_lr = None
-                for group in optimizer.param_groups:
-                    current_lr = group["lr"]
-
                 # Remaining things related to training.
-                if epoch % save_interval == 0:
+                if global_minibatch_counter % 10000 == 0:
                     epoch_output_path = checkpoints_folder.joinpath(
-                        f"resnet{num_layers}_e{epoch}_mb{minibatch_num}_va{val_acc:.5f}.pt")
+                        f"resnet{num_layers}_e{epoch}_mb{global_minibatch_counter}_va{val_acc:.5f}.pt")
 
                     # Confirm the output directory exists.
                     epoch_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -360,22 +351,29 @@ def train_helper(model: torchvision.models.resnet.ResNet,
                         "optimizer_state_dict": optimizer.state_dict(),
                         "scheduler_state_dict": scheduler.state_dict(),
                         "epoch": epoch + 1
-                    },
-                            f=str(epoch_output_path))
+                    }, f=str(epoch_output_path))
 
-                writer.write(f"{epoch},{train_loss:.4f},"
+                writer.write(f"{epoch},{global_minibatch_counter},{train_loss:.4f},"
                             f"{train_acc:.4f},{val_loss:.4f},{val_acc:.4f}\n")
 
-                # Print the diagnostics for each minibatch.
+                current_lr = None
+                for group in optimizer.param_groups:
+                    current_lr = group["lr"]
+
+                # Print the diagnostics for each epoch.
                 print(f"Epoch {epoch} with "
-                    f"lr {current_lr:.15f} at minibatch {minibatch_num} "
+                    f"mb {global_minibatch_counter} "
+                    f"lr {current_lr:.15f}: "
                     f"t_loss: {train_loss:.4f} "
                     f"t_acc: {train_acc:.4f} "
                     f"v_loss: {val_loss:.4f} "
                     f"v_acc: {val_acc:.4f}\n")
 
-                
-                model.train(mode=True)
+        scheduler.step()
+
+        current_lr = None
+        for group in optimizer.param_groups:
+            current_lr = group["lr"]
 
     # Print training information at the end.
     print(f"\ntraining complete in "
@@ -429,8 +427,7 @@ def train_resnet(
         path_std=path_std)
 
     image_datasets = {
-        x: datasets.ImageFolder(root=str(train_folder.joinpath(x)),
-                                transform=data_transforms[x])
+        x: ImageFolderWithPaths(root=str(train_folder.joinpath(x)), transform=data_transforms[x])
         for x in ("train", "val")
     }
 
@@ -455,8 +452,8 @@ def train_resnet(
     optimizer = optim.Adam(params=model.parameters(),
                            lr=learning_rate,
                            weight_decay=weight_decay)
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,
-                                                patience=25, min_lr=0.000001, factor=0.7)
+    scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer,
+                                           gamma=learning_rate_decay)
 
     # Initialize the model.
     if resume_checkpoint:
@@ -475,6 +472,7 @@ def train_resnet(
                  learning_rate=learning_rate,
                  learning_rate_decay=learning_rate_decay,
                  log_csv=log_csv,
+                 training_order_csv=training_order_csv,
                  num_epochs=num_epochs,
                  num_layers=num_layers,
                  pretrain=pretrain,
@@ -489,7 +487,7 @@ def train_resnet(
     log_csv.parent.mkdir(parents=True, exist_ok=True)
 
     with log_csv.open(mode="w") as writer:
-        writer.write("epoch,train_loss,train_acc,val_loss,val_acc\n")
+        writer.write("epoch,minibatch,train_loss,train_acc,val_loss,val_acc\n")
         # Train the model.
         train_helper(model=model,
                      dataloaders=dataloaders,

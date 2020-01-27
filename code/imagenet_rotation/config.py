@@ -3,7 +3,6 @@ from pathlib import Path
 
 import torch
 
-from compute_stats import compute_stats
 from utils import (get_classes, get_log_csv_name)
 
 # Source: https://stackoverflow.com/questions/12151306/argparse-way-to-include-default-values-in-help
@@ -25,20 +24,6 @@ parser.add_argument("--patch_size",
                     default=224,
                     help="Size of the patches extracted from the WSI")
 
-# # Where the CSV file labels will go.
-# parser.add_argument("--labels_train",
-#                     type=Path,
-#                     default=Path("labels_train.csv"),
-#                     help="Location to store the CSV file labels for training")
-# parser.add_argument("--labels_val",
-#                     type=Path,
-#                     default=Path("labels_val.csv"),
-#                     help="Location to store the CSV file labels for validation")
-# parser.add_argument("--labels_test",
-#                     type=Path,
-#                     default=Path("labels_test.csv"),
-#                     help="Location to store the CSV file labels for testing")
-
 ###############################################################
 #               PROCESSING AND PATCH GENERATION               #
 ###############################################################
@@ -50,26 +35,9 @@ parser.add_argument(
     # default=Path("/home/ifsdata/vlg/jason/easy-self-supervised-training/data/voc_trainval_full"),
     help="Location of the automatically built training input folder")
 
-# Folders of patches by WSI in training set, used for finding training accuracy at WSI level.
-# parser.add_argument(
-#     "--patches_eval_train",
-#     type=Path,
-#     default=Path("patches_eval_train"),
-#     help=
-#     "Folders of patches by WSI in training set, used for finding training accuracy at WSI level"
-# )
-# # Folders of patches by WSI in validation set, used for finding validation accuracy at WSI level.
-# parser.add_argument(
-#     "--patches_eval_val",
-#     type=Path,
-#     default=Path("patches_eval_val"),
-#     help=
-#     "Folders of patches by WSI in validation set, used for finding validation accuracy at WSI level"
-# )
-
 parser.add_argument("--image_ext",
                     type=str,
-                    default="JPEG",
+                    default="jpg",
                     help="Image extension for saving patches")
 
 #########################################
@@ -121,7 +89,7 @@ parser.add_argument(
     "Number of layers to use in the ResNet model from [18, 34, 50, 101, 152]")
 parser.add_argument("--learning_rate",
                     type=float,
-                    default=0.003,
+                    default=0.1,
                     help="Learning rate to use for gradient descent")
 parser.add_argument("--batch_size",
                     type=int,
@@ -133,7 +101,7 @@ parser.add_argument("--weight_decay",
                     help="Weight decay (L2 penalty) to use in optimizer")
 parser.add_argument("--learning_rate_decay",
                     type=float,
-                    default=0.85,
+                    default=0.3,
                     help="Learning rate decay amount per epoch")
 parser.add_argument("--resume_checkpoint",
                     type=bool,
@@ -146,7 +114,7 @@ parser.add_argument("--save_interval",
 # Where models are saved.
 parser.add_argument("--checkpoints_folder",
                     type=Path,
-                    default=Path("/home/ifsdata/vlg/data_jason/checkpoints/image_net/vanilla_train"),
+                    default=Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_5"),
                     help="Directory to save model checkpoints to")
 
 # Name of checkpoint file to load from.
@@ -162,7 +130,7 @@ parser.add_argument("--pretrain",
                     help="Use pretrained ResNet weights")
 parser.add_argument("--log_folder",
                     type=Path,
-                    default=Path("logs/imagenet/vanilla"),
+                    default=Path("logs/imagenet/vanilla/exp_5"),
                     help="Directory to save logs to")
 
 ##########################################
