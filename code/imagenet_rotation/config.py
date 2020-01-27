@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 
-from utils import (get_classes, get_log_csv_name, get_log_csv_training_order)
+from utils import (get_classes, get_log_csv_name, get_log_csv_train_order)
 
 # Source: https://stackoverflow.com/questions/12151306/argparse-way-to-include-default-values-in-help
 parser = argparse.ArgumentParser(
@@ -89,11 +89,11 @@ parser.add_argument(
     "Number of layers to use in the ResNet model from [18, 34, 50, 101, 152]")
 parser.add_argument("--learning_rate",
                     type=float,
-                    default=0.1,
+                    default=0.0001,
                     help="Learning rate to use for gradient descent")
 parser.add_argument("--batch_size",
                     type=int,
-                    default=32,
+                    default=128,
                     help="Mini-batch size to use for training")
 parser.add_argument("--weight_decay",
                     type=float,
@@ -101,7 +101,7 @@ parser.add_argument("--weight_decay",
                     help="Weight decay (L2 penalty) to use in optimizer")
 parser.add_argument("--learning_rate_decay",
                     type=float,
-                    default=0.3,
+                    default=0.1,
                     help="Learning rate decay amount per epoch")
 parser.add_argument("--resume_checkpoint",
                     type=bool,
@@ -114,7 +114,7 @@ parser.add_argument("--save_interval",
 # Where models are saved.
 parser.add_argument("--checkpoints_folder",
                     type=Path,
-                    default=Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_5"),
+                    default=Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_10"),
                     help="Directory to save model checkpoints to")
 
 # Name of checkpoint file to load from.
@@ -130,7 +130,7 @@ parser.add_argument("--pretrain",
                     help="Use pretrained ResNet weights")
 parser.add_argument("--log_folder",
                     type=Path,
-                    default=Path("logs/imagenet/vanilla/exp_5"),
+                    default=Path("/home/brenta/scratch/jason/logs/imagenet/vanilla/exp_10"),
                     help="Directory to save logs to")
 
 ##########################################

@@ -288,8 +288,8 @@ def train_helper(model: torchvision.models.resnet.ResNet,
             global_minibatch_counter += 1
             epoch_minibatch_counter += 1
 
-            for path in paths:
-                train_order_writer.write(f"{path}/n")
+            for path in paths: #write the order that the model was trained in
+                train_order_writer.write("/".join(path.split("/")[-2:]) + "\n")
 
             if global_minibatch_counter % 1000 == 0:
 
