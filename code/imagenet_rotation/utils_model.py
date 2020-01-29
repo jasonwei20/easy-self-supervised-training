@@ -573,12 +573,9 @@ def get_predictions(patches_eval_folder: Path, output_folder: Path,
         num_workers: Number of workers to use for IO.
     """
     # Initialize the model.
-    model_path = get_best_model(
-        checkpoints_folder=checkpoints_folder) if auto_select else eval_model
+    model_path = get_best_model(checkpoints_folder=checkpoints_folder) if auto_select else eval_model
 
-    model = create_model(num_classes=num_classes,
-                         num_layers=num_layers,
-                         pretrain=pretrain)
+    model = create_model(num_classes=num_classes, num_layers=num_layers, pretrain=pretrain)
     ckpt = torch.load(f=model_path)
     model.load_state_dict(state_dict=ckpt["model_state_dict"])
     model = model.to(device=device)
@@ -590,67 +587,56 @@ def get_predictions(patches_eval_folder: Path, output_folder: Path,
     class_num_to_class = {i: classes[i] for i in range(num_classes)}
 
     start = time.time()
-    # Load the data for each folder.
-    image_folders = get_subfolder_paths(folder=patches_eval_folder)
+    # patches_eval_folder
 
     # Where we want to write out the predictions.
     # Confirm the output directory exists.
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    # For each WSI.
-    for image_folder in image_folders:
+    # image_dataset = ImageFolderWithPaths(root=str(train_folder.joinpath(x)), transform=data_transforms[x])
 
-        # Temporary fix. Need not to make folders with no crops.
-        try:
-            # Load the image dataset.
-            dataloader = torch.utils.data.DataLoader(
-                dataset=datasets.ImageFolder(
-                    root=str(image_folder),
-                    transform=transforms.Compose(transforms=[
-                        transforms.Resize((224, 224)),
-                        transforms.ToTensor(),
-                        transforms.Normalize(mean=path_mean, std=path_std)
-                    ])),
-                batch_size=batch_size,
-                shuffle=False,
-                num_workers=num_workers)
-        except RuntimeError:
-            print(
-                "WARNING: One of the image directories is empty. Skipping this directory."
-            )
-            continue
+    # dataloaders = {
+    #     x: torch.utils.data.DataLoader(dataset=image_datasets[x],
+    #                                    batch_size=batch_size,
+    #                                    shuffle=(x is "train"),
+    #                                    num_workers=num_workers)
+    #     for x in ("train", "val")
+    # }
 
-        num_test_image_windows = len(dataloader) * batch_size
+    # Load the image dataset.
+    dataloader = torch.utils.data.DataLoader(
+        dataset=ImageFolderWithPaths(root=str(patches_eval_folder),
+            transform=transforms.Compose(transforms=[
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=path_mean, std=path_std)
+            ])),
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers)
 
-        # Load the image names so we know the coordinates of the patches we are predicting.
-        image_folder = image_folder.joinpath(image_folder.name)
-        window_names = get_image_paths(folder=image_folder)
+    num_test_image_windows = len(dataloader) * batch_size
 
-        print(f"testing on {num_test_image_windows} crops from {image_folder}")
+    print(f"testing on {num_test_image_windows} crops from {patches_eval_folder}")
 
-        test_label_to_class = {0:"0", 1:"180", 2:"270", 3:"90"}
+    test_label_to_class = {0:"0", 1:"180", 2:"270", 3:"90"}
 
-        with output_folder.joinpath(f"{image_folder.name}.csv").open(
-                mode="w") as writer:
+    with output_folder.joinpath(f"train_preds.csv").open(mode="w") as writer:
 
-            writer.write("image_name,ground_truth,prediction,confidence\n")
+        writer.write("image_name,prediction,confidence\n")
 
-            # Loop through all of the patches.
-            for batch_num, (test_inputs, test_labels) in enumerate(dataloader):
-                batch_window_names = window_names[batch_num *
-                                                  batch_size:batch_num *
-                                                  batch_size + batch_size]
+        # Loop through all of the patches.
+        for batch_num, (test_inputs, test_labels, paths) in enumerate(dataloader):
 
-                confidences, test_preds = torch.max(nn.Softmax(dim=1)(model(
-                    test_inputs.to(device=device))),
-                                                    dim=1)
-                for i in range(test_preds.shape[0]):
-                    # Find coordinates and predicted class.
-                    image_name = batch_window_names[i].name
-                    # xy = batch_window_names[i].name.split(".")[0].split(";")
+            confidences, test_preds = torch.max(nn.Softmax(dim=1)(model(test_inputs.to(device=device))), dim=1)
+            
+            for i in range(test_preds.shape[0]):
+                # Find coordinates and predicted class.
+                image_name = "/".join(paths[i].split('/')[-2:])
 
-                    writer.write(
-                        f"{','.join([image_name, image_folder.name, f'{class_num_to_class[test_preds[i].data.item()]}', f'{confidences[i].data.item():.5f}'])}\n"
-                    )
+                # print(f"{','.join([image_name, f'{class_num_to_class[test_preds[i].data.item()]}', f'{confidences[i].data.item():.5f}'])}\n")
+                writer.write(
+                    f"{','.join([image_name, f'{class_num_to_class[test_preds[i].data.item()]}', f'{confidences[i].data.item():.5f}'])}\n"
+                )
 
     print(f"time for {patches_eval_folder}: {time.time() - start:.2f} seconds")

@@ -89,7 +89,7 @@ parser.add_argument(
     "Number of layers to use in the ResNet model from [18, 34, 50, 101, 152]")
 parser.add_argument("--learning_rate",
                     type=float,
-                    default=0.0001,
+                    default=0.000003,
                     help="Learning rate to use for gradient descent")
 parser.add_argument("--batch_size",
                     type=int,
@@ -114,7 +114,7 @@ parser.add_argument("--save_interval",
 # Where models are saved.
 parser.add_argument("--checkpoints_folder",
                     type=Path,
-                    default=Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_10"),
+                    default=Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_13"),
                     help="Directory to save model checkpoints to")
 
 # Name of checkpoint file to load from.
@@ -130,7 +130,7 @@ parser.add_argument("--pretrain",
                     help="Use pretrained ResNet weights")
 parser.add_argument("--log_folder",
                     type=Path,
-                    default=Path("/home/brenta/scratch/jason/logs/imagenet/vanilla/exp_10"),
+                    default=Path("/home/brenta/scratch/jason/logs/imagenet/vanilla/exp_13"),
                     help="Directory to save logs to")
 
 ##########################################
