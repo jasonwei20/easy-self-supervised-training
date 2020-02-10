@@ -8,3 +8,4 @@ plots/*
 outputs/*
 *.pyc
 .vscode/
+*.npy

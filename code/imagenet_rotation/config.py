@@ -5,7 +5,8 @@ import torch
 
 from utils import (get_classes, get_log_csv_name, get_log_csv_train_order)
 
-# Source: https://stackoverflow.com/questions/12151306/argparse-way-to-include-default-values-in-help
+exp_num = 35
+
 parser = argparse.ArgumentParser(
     description="DeepSlide",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -31,7 +32,8 @@ parser.add_argument("--patch_size",
 parser.add_argument(
     "--train_folder",
     type=Path,
-    default=Path("/home/brenta/scratch/data/imagenet_rotnet/"),
+    # default=Path("/home/brenta/scratch/data/imagenet_rotnet/"),
+    default=Path("/home/brenta/scratch/jason/data/imagenet/cl/exp_" + str(exp_num)),
     # default=Path("/home/ifsdata/vlg/jason/easy-self-supervised-training/data/voc_trainval_full"),
     help="Location of the automatically built training input folder")
 
@@ -89,7 +91,7 @@ parser.add_argument(
     "Number of layers to use in the ResNet model from [18, 34, 50, 101, 152]")
 parser.add_argument("--learning_rate",
                     type=float,
-                    default=0.000003,
+                    default=0.00001,
                     help="Learning rate to use for gradient descent")
 parser.add_argument("--batch_size",
                     type=int,
@@ -101,11 +103,11 @@ parser.add_argument("--weight_decay",
                     help="Weight decay (L2 penalty) to use in optimizer")
 parser.add_argument("--learning_rate_decay",
                     type=float,
-                    default=0.1,
+                    default=0.5,
                     help="Learning rate decay amount per epoch")
 parser.add_argument("--resume_checkpoint",
                     type=bool,
-                    default=False,
+                    default=True,
                     help="Resume model from checkpoint file")
 parser.add_argument("--save_interval",
                     type=int,
@@ -114,14 +116,14 @@ parser.add_argument("--save_interval",
 # Where models are saved.
 parser.add_argument("--checkpoints_folder",
                     type=Path,
-                    default=Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_13"),
+                    default=Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_" + str(exp_num)),
                     help="Directory to save model checkpoints to")
 
 # Name of checkpoint file to load from.
 parser.add_argument(
     "--checkpoint_file",
     type=Path,
-    default=Path("xyz.pt"),
+    default=Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_10/resnet18_e0_mb40000_va0.80428.pt"), #"/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_10/resnet18_e0_mb40000_va0.80428.pt"
     help="Checkpoint file to load if resume_checkpoint_path is True")
 # ImageNet pretrain?
 parser.add_argument("--pretrain",
@@ -130,7 +132,7 @@ parser.add_argument("--pretrain",
                     help="Use pretrained ResNet weights")
 parser.add_argument("--log_folder",
                     type=Path,
-                    default=Path("/home/brenta/scratch/jason/logs/imagenet/vanilla/exp_13"),
+                    default=Path("/home/brenta/scratch/jason/logs/imagenet/vanilla/exp_" + str(exp_num)),
                     help="Directory to save logs to")
 
 ##########################################
@@ -141,7 +143,7 @@ parser.add_argument("--log_folder",
 parser.add_argument(
     "--auto_select",
     type=bool,
-    default=True,
+    default=False,
     help="Automatically select the model with the highest validation accuracy")
 # Where to put the training prediction CSV files.
 parser.add_argument(
@@ -171,7 +173,7 @@ args = parser.parse_args()
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Automatically read in the classes.
-classes = get_classes(args.train_folder.joinpath("val"))
+classes = get_classes(args.train_folder.joinpath("train"))
 num_classes = len(classes)
 
 # This is the input for model training, automatically built.
@@ -185,14 +187,15 @@ path_mean, path_std = ( [0.40853017568588257, 0.4573926329612732, 0.480357229709
                                     #image_ext=args.image_ext)
 
 # Only used is resume_checkpoint is True.
-resume_checkpoint_path = args.checkpoints_folder.joinpath(args.checkpoint_file)
+# resume_checkpoint_path = args.checkpoints_folder.joinpath(args.checkpoint_file)
+resume_checkpoint_path = args.checkpoint_file
 
 # Named with date and time.
 log_csv = get_log_csv_name(log_folder=args.log_folder)
 train_order_csv = get_log_csv_train_order(log_folder=args.log_folder)
 
 # Does nothing if auto_select is True.
-eval_model = args.checkpoints_folder.joinpath(args.checkpoint_file)
+eval_model = Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_10/resnet18_e0_mb40000_va0.80428.pt") #args.checkpoints_folder.joinpath(args.checkpoint_file)
 
 # Print the configuration.
 # Source: https://stackoverflow.com/questions/44689546/how-to-print-out-a-dictionary-nicely-in-python/44689627

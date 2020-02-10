@@ -42,7 +42,6 @@ def plot_histogram(prediction_csv, title):
     plt.savefig(output_path, dpi=400)
     print("output at ", output_path)
 
-
 if __name__ == "__main__":
     plot_histogram(prediction_csv_5_epochs, "Predicted distribution after 5 epochs")
     plot_histogram(prediction_csv_10_epochs, "Predicted distribution after 10 epochs")

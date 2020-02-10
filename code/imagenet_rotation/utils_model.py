@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import (Dict, IO, List, Tuple)
 
+import torchvision.models as models
 import numpy as np
 import pandas as pd
 import torch
@@ -247,7 +248,7 @@ def train_helper(model: torchvision.models.resnet.ResNet,
     val_all_predicts = torch.empty(size=(dataset_sizes["val"], ),
                                    dtype=torch.long).cpu()
 
-    global_minibatch_counter = 0
+    global_minibatch_counter = 40000
 
     # Train for specified number of epochs.
     for epoch in range(start_epoch, num_epochs):
@@ -276,8 +277,7 @@ def train_helper(model: torchvision.models.resnet.ResNet,
 
             # Update training diagnostics.
             train_running_loss += train_loss.item() * train_inputs.size(0)
-            train_running_corrects += torch.sum(
-                train_preds == train_labels.data, dtype=torch.double)
+            train_running_corrects += torch.sum(train_preds == train_labels.data, dtype=torch.double)
 
             start = idx * batch_size
             end = start + batch_size
@@ -433,8 +433,8 @@ def train_resnet(
         path_std=path_std)
 
     image_datasets = {
-        x: ImageFolderWithPaths(root=str(train_folder.joinpath(x)), transform=data_transforms[x])
-        for x in ("train", "val")
+        "train": ImageFolderWithPaths(root=str(train_folder.joinpath("train")), transform=data_transforms["train"]),
+        "val": ImageFolderWithPaths(root="/home/brenta/scratch/data/imagenet_rotnet/val", transform=data_transforms["val"])
     }
 
     dataloaders = {
@@ -546,6 +546,105 @@ def get_best_model(checkpoints_folder: Path) -> str:
         for model in get_image_paths(folder=checkpoints_folder)
     }.items(),
                key=operator.itemgetter(1))[0]
+
+
+def extract_features(patches_eval_folder: Path, output_folder: Path,
+                    checkpoints_folder: Path, auto_select: bool,
+                    eval_model: Path, device: torch.device, classes: List[str],
+                    num_classes: int, path_mean: List[float],
+                    path_std: List[float], num_layers: int, pretrain: bool,
+                    batch_size: int, num_workers: int) -> None:
+    """
+    Main function for running the model on all of the generated patches.
+    Args:
+        patches_eval_folder: Folder containing patches to evaluate on.
+        output_folder: Folder to save the model results to.
+        checkpoints_folder: Directory to save model checkpoints to.
+        auto_select: Automatically select the model with the highest validation accuracy,
+        eval_model: Path to the model with the highest validation accuracy.
+        device: Device to use for running model.
+        classes: Names of the classes in the dataset.
+        num_classes: Number of classes in the dataset.
+        path_mean: Means of the WSIs for each dimension.
+        path_std: Standard deviations of the WSIs for each dimension.
+        num_layers: Number of layers to use in the ResNet model from [18, 34, 50, 101, 152].
+        pretrain: Use pretrained ResNet weights.
+        batch_size: Mini-batch size to use for training.
+        num_workers: Number of workers to use for IO.
+    """
+    # Initialize the model.
+    model_path = get_best_model(checkpoints_folder=checkpoints_folder) if auto_select else eval_model
+
+    model = create_model(num_classes=num_classes, num_layers=num_layers, pretrain=pretrain)
+    ckpt = torch.load(f=model_path)
+    model.load_state_dict(state_dict=ckpt["model_state_dict"])
+    # model = models.resnet18(pretrained=False)
+    model = model.to(device=device)
+
+    model.train(mode=False)
+    print(f"model loaded from {model_path}")
+
+    class ResNet50Bottom(nn.Module):
+        def __init__(self, original_model):
+            super(ResNet50Bottom, self).__init__()
+            self.features = nn.Sequential(*list(original_model.children())[:-1])
+            
+        def forward(self, x):
+            x = self.features(x)
+            return x
+
+    res_conv_feature = ResNet50Bottom(model)
+
+    # outputs = res50_conv2(inputs)
+
+    # Confirm the output directory exists.
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    # Load the image dataset.
+    dataloader = torch.utils.data.DataLoader(
+        dataset=ImageFolderWithPaths(root=str(patches_eval_folder),
+            transform=transforms.Compose(transforms=[
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=path_mean, std=path_std)
+            ])),
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers)
+
+    test_label_to_class = {0:"0", 1:"180", 2:"270", 3:"90"}
+    class_num_to_class = {i: classes[i] for i in range(num_classes)}
+
+    num_samples = len(dataloader) * batch_size
+    output_features = np.zeros((num_samples, 512))
+
+    with output_folder.joinpath(f"train_features.csv").open(mode="w") as writer:
+
+        writer.write("image_name,prediction,confidence\n")
+
+        for batch_num, (test_inputs, test_labels, paths) in enumerate(dataloader):
+
+            outputs = res_conv_feature(test_inputs.to(device=device))
+            outputs = outputs.cpu().data.numpy()
+            outputs = np.squeeze(outputs)
+            start_idx = batch_num * batch_size
+            end_idx = start_idx + outputs.shape[0]
+            output_features[start_idx:end_idx, :] = outputs
+            
+            for i in range(outputs.shape[0]):
+                # Find coordinates and predicted class.
+                image_name = "/".join(paths[i].split('/')[-2:])
+
+                # print(image_name, outputs.shape, outputs[i].cpu().data.numpy())
+
+                # writer.write(
+                #     f"{','.join([image_name, f'{class_num_to_class[test_preds[i].data.item()]}', f'{confidences[i].data.item():.5f}'])}\n"
+                # )
+    
+    these_features = output_features[:2501, :]
+
+    from numpy import save
+    save('rotnetbad3_features_conv5.npy', these_features)
 
 
 def get_predictions(patches_eval_folder: Path, output_folder: Path,
