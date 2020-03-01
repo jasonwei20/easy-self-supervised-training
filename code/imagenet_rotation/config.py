@@ -5,7 +5,7 @@ import torch
 
 from utils import (get_classes, get_log_csv_name, get_log_csv_train_order)
 
-exp_num = 35
+exp_num = 37
 
 parser = argparse.ArgumentParser(
     description="DeepSlide",
@@ -32,8 +32,8 @@ parser.add_argument("--patch_size",
 parser.add_argument(
     "--train_folder",
     type=Path,
-    # default=Path("/home/brenta/scratch/data/imagenet_rotnet/"),
-    default=Path("/home/brenta/scratch/jason/data/imagenet/cl/exp_" + str(exp_num)),
+    default=Path("/home/brenta/scratch/data/imagenet_rotnet/"),
+    # default=Path("/home/brenta/scratch/jason/data/imagenet/cl/exp_" + str(exp_num)),
     # default=Path("/home/ifsdata/vlg/jason/easy-self-supervised-training/data/voc_trainval_full"),
     help="Location of the automatically built training input folder")
 
@@ -86,16 +86,16 @@ parser.add_argument("--num_epochs",
 parser.add_argument(
     "--num_layers",
     type=int,
-    default=18,
+    default=50,
     help=
     "Number of layers to use in the ResNet model from [18, 34, 50, 101, 152]")
 parser.add_argument("--learning_rate",
                     type=float,
-                    default=0.00001,
+                    default=0.0001,
                     help="Learning rate to use for gradient descent")
 parser.add_argument("--batch_size",
                     type=int,
-                    default=128,
+                    default=64,
                     help="Mini-batch size to use for training")
 parser.add_argument("--weight_decay",
                     type=float,
@@ -107,7 +107,7 @@ parser.add_argument("--learning_rate_decay",
                     help="Learning rate decay amount per epoch")
 parser.add_argument("--resume_checkpoint",
                     type=bool,
-                    default=True,
+                    default=False,
                     help="Resume model from checkpoint file")
 parser.add_argument("--save_interval",
                     type=int,
