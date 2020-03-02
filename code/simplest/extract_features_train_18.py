@@ -8,7 +8,7 @@ import torchvision
 from torchvision import datasets, transforms
 
 patches_eval_folder = Path("/home/brenta/scratch/data/voc07_old/VOCdevkit/VOC2007/voc_train")
-model_path = Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_10/resnet18_e0_mb10000_va0.70834.pt")
+model_path = Path("/home/brenta/scratch/jason/checkpoints/image_net/vanilla/exp_24/resnet18_e3_mb160000_va0.83590.pt")
 output_folder = Path("/home/brenta/scratch/jason/outputs/voc/extracted_features/conv5")
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 batch_size = 64

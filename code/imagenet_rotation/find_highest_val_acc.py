@@ -21,6 +21,6 @@ def find_best_val_acc(log_file):
     return best_val_acc
 
 if __name__ == "__main__":
-    log_file = get_log_file(folder)
-    # log_file = "/home/brenta/scratch/jason/logs/imagenet/vanilla/exp_34/log_242020_2091.csv"
+    # log_file = get_log_file(folder)
+    log_file = "/home/brenta/scratch/jason/logs/imagenet/grad_cl/exp_43/log_2292020_23022.csv"
     print(find_best_val_acc(log_file))

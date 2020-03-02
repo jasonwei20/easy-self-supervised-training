@@ -73,6 +73,26 @@ def calculate_confusion_matrix(all_labels: np.ndarray,
     print(cm)
 
 
+class Random90Rotation:
+    def __init__(self, degrees: Tuple[int] = None) -> None:
+        """
+        Randomly rotate the image for training. Credits to Naofumi Tomita.
+        Args:
+            degrees: Degrees available for rotation.
+        """
+        self.degrees = (0, 90, 180, 270) if (degrees is None) else degrees
+
+    def __call__(self, im: Image) -> Image:
+        """
+        Produces a randomly rotated image every time the instance is called.
+        Args:
+            im: The image to rotate.
+        Returns:    
+            Randomly rotated image.
+        """
+        return im.rotate(angle=random.sample(population=self.degrees, k=1)[0])
+
+
 def create_model(num_layers: int, num_classes: int,
                  pretrain: bool) -> torchvision.models.resnet.ResNet:
     """
@@ -120,6 +140,13 @@ def get_data_transforms(color_jitter_brightness: float,
         "train":
         transforms.Compose(transforms=[
             transforms.Resize((224, 224)),
+            # transforms.ColorJitter(brightness=color_jitter_brightness,
+            #                        contrast=color_jitter_contrast,
+            #                        saturation=color_jitter_saturation,
+            #                        hue=color_jitter_hue),
+            # transforms.RandomHorizontalFlip(),
+            # transforms.RandomVerticalFlip(),
+            # Random90Rotation(),
             transforms.ToTensor(),
             transforms.Normalize(mean=path_mean, std=path_std)
         ]),
@@ -192,16 +219,15 @@ def get_image_name(image_path):
 #          MAIN TRAIN FUNCTION            #
 ###########################################
 
-
-def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
-                 dataloaders: Dict[str, torch.utils.data.DataLoader],
-                 dataset_sizes: Dict[str, int],
-                 criterion: torch.nn.modules.loss, optimizer: torch.optim,
-                 scheduler: torch.optim.lr_scheduler, num_epochs: int,
-                 writer: IO, train_order_writer: IO, device: torch.device, start_epoch: int,
-                 batch_size: int, save_interval: int, checkpoints_folder: Path,
-                 num_layers: int, classes: List[str],
-                 num_classes: int) -> None:
+def train_helper_with_gradients_no_update(  model: torchvision.models.resnet.ResNet,
+                                            dataloaders: Dict[str, torch.utils.data.DataLoader],
+                                            dataset_sizes: Dict[str, int],
+                                            criterion: torch.nn.modules.loss, optimizer: torch.optim,
+                                            scheduler: torch.optim.lr_scheduler, num_epochs: int,
+                                            writer: IO, train_order_writer: IO, device: torch.device, start_epoch: int,
+                                            batch_size: int, save_interval: int, checkpoints_folder: Path,
+                                            num_layers: int, classes: List[str],
+                                            num_classes: int, grad_csv: Path) -> None:
     since = time.time()
 
     # Initialize all the tensors to be used in training and validation.
@@ -218,11 +244,11 @@ def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
 
     global_minibatch_counter = 0
 
-    mag_writer = open("mags_resnet18_imagenet.csv", "w")
+    mag_writer = open(str(grad_csv), "w")
     mag_writer.write("image_name,train_loss,layers_-1,layer_0,layer_60,layer_1,layer_20,layer_40,layer_59,conf,correct\n")
 
     # Train for specified number of epochs.
-    for epoch in range(start_epoch, num_epochs):
+    for epoch in range(0, num_epochs):
 
         # Training phase.
         model.train(mode=True)
@@ -244,9 +270,9 @@ def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
                 train_loss = criterion(input=train_outputs,
                                        target=train_labels)
                 train_loss.backward(retain_graph=True)
-                optimizer.step()
+                # optimizer.step()
 
-                batch_grads = torch.autograd.grad(train_loss, model.parameters(), retain_graph=True)
+                # batch_grads = torch.autograd.grad(train_loss, model.parameters(), retain_graph=True)
                 # print(len(batch_grads))
                 # for batch_grad in batch_grads:
                 #     print(batch_grad.size())
@@ -279,88 +305,88 @@ def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
             global_minibatch_counter += 1
             epoch_minibatch_counter += 1
 
-            if global_minibatch_counter % 1000 == 0:
+            # if global_minibatch_counter % 1000 == 0:
 
-                calculate_confusion_matrix(all_labels=train_all_labels.numpy(),
-                                        all_predicts=train_all_predicts.numpy(),
-                                        classes=classes,
-                                        num_classes=num_classes)
+            #     calculate_confusion_matrix(all_labels=train_all_labels.numpy(),
+            #                             all_predicts=train_all_predicts.numpy(),
+            #                             classes=classes,
+            #                             num_classes=num_classes)
 
-                # Store training diagnostics.
-                train_loss = train_running_loss / (epoch_minibatch_counter * batch_size)
-                train_acc = train_running_corrects / (epoch_minibatch_counter * batch_size)
+            #     # Store training diagnostics.
+            #     train_loss = train_running_loss / (epoch_minibatch_counter * batch_size)
+            #     train_acc = train_running_corrects / (epoch_minibatch_counter * batch_size)
 
-                # Validation phase.
-                model.train(mode=False)
+            #     # Validation phase.
+            #     model.train(mode=False)
 
-                val_running_loss = 0.0
-                val_running_corrects = 0
+            #     val_running_loss = 0.0
+            #     val_running_corrects = 0
 
-                # Feed forward over all the validation data.
-                for idx, (val_inputs, val_labels, paths) in enumerate(dataloaders["val"]):
-                    val_inputs = val_inputs.to(device=device)
-                    val_labels = val_labels.to(device=device)
+            #     # Feed forward over all the validation data.
+            #     for idx, (val_inputs, val_labels, paths) in enumerate(dataloaders["val"]):
+            #         val_inputs = val_inputs.to(device=device)
+            #         val_labels = val_labels.to(device=device)
 
-                    # Feed forward.
-                    with torch.set_grad_enabled(mode=False):
-                        val_outputs = model(val_inputs)
-                        _, val_preds = torch.max(val_outputs, dim=1)
-                        val_loss = criterion(input=val_outputs, target=val_labels)
+            #         # Feed forward.
+            #         with torch.set_grad_enabled(mode=False):
+            #             val_outputs = model(val_inputs)
+            #             _, val_preds = torch.max(val_outputs, dim=1)
+            #             val_loss = criterion(input=val_outputs, target=val_labels)
 
-                    # Update validation diagnostics.
-                    val_running_loss += val_loss.item() * val_inputs.size(0)
-                    val_running_corrects += torch.sum(val_preds == val_labels.data,
-                                                    dtype=torch.double)
+            #         # Update validation diagnostics.
+            #         val_running_loss += val_loss.item() * val_inputs.size(0)
+            #         val_running_corrects += torch.sum(val_preds == val_labels.data,
+            #                                         dtype=torch.double)
 
-                    start = idx * batch_size
-                    end = start + batch_size
+            #         start = idx * batch_size
+            #         end = start + batch_size
 
-                    val_all_labels[start:end] = val_labels.detach().cpu()
-                    val_all_predicts[start:end] = val_preds.detach().cpu()
+            #         val_all_labels[start:end] = val_labels.detach().cpu()
+            #         val_all_predicts[start:end] = val_preds.detach().cpu()
 
-                calculate_confusion_matrix(all_labels=val_all_labels.numpy(),
-                                        all_predicts=val_all_predicts.numpy(),
-                                        classes=classes,
-                                        num_classes=num_classes)
+            #     calculate_confusion_matrix(all_labels=val_all_labels.numpy(),
+            #                             all_predicts=val_all_predicts.numpy(),
+            #                             classes=classes,
+            #                             num_classes=num_classes)
 
-                # Store validation diagnostics.
-                val_loss = val_running_loss / dataset_sizes["val"]
-                val_acc = val_running_corrects / dataset_sizes["val"]
+            #     # Store validation diagnostics.
+            #     val_loss = val_running_loss / dataset_sizes["val"]
+            #     val_acc = val_running_corrects / dataset_sizes["val"]
 
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+            #     if torch.cuda.is_available():
+            #         torch.cuda.empty_cache()
 
                 # Remaining things related to training.
-                if global_minibatch_counter % 200000 == 0 or global_minibatch_counter == 5:
-                    epoch_output_path = checkpoints_folder.joinpath(
-                        f"resnet{num_layers}_e{epoch}_mb{global_minibatch_counter}_va{val_acc:.5f}.pt")
+                # if global_minibatch_counter % 200000 == 0 or global_minibatch_counter == 5:
+                #     epoch_output_path = checkpoints_folder.joinpath(
+                #         f"resnet{num_layers}_e{epoch}_mb{global_minibatch_counter}_va{val_acc:.5f}.pt")
 
-                    # Confirm the output directory exists.
-                    epoch_output_path.parent.mkdir(parents=True, exist_ok=True)
+                #     # Confirm the output directory exists.
+                #     epoch_output_path.parent.mkdir(parents=True, exist_ok=True)
 
-                    # Save the model as a state dictionary.
-                    torch.save(obj={
-                        "model_state_dict": model.state_dict(),
-                        "optimizer_state_dict": optimizer.state_dict(),
-                        "scheduler_state_dict": scheduler.state_dict(),
-                        "epoch": epoch + 1
-                    }, f=str(epoch_output_path))
+                #     # Save the model as a state dictionary.
+                #     torch.save(obj={
+                #         "model_state_dict": model.state_dict(),
+                #         "optimizer_state_dict": optimizer.state_dict(),
+                #         "scheduler_state_dict": scheduler.state_dict(),
+                #         "epoch": epoch + 1
+                #     }, f=str(epoch_output_path))
 
-                writer.write(f"{epoch},{global_minibatch_counter},{train_loss:.4f},"
-                            f"{train_acc:.4f},{val_loss:.4f},{val_acc:.4f}\n")
+                # writer.write(f"{epoch},{global_minibatch_counter},{train_loss:.4f},"
+                #             f"{train_acc:.4f},{val_loss:.4f},{val_acc:.4f}\n")
 
-                current_lr = None
-                for group in optimizer.param_groups:
-                    current_lr = group["lr"]
+                # current_lr = None
+                # for group in optimizer.param_groups:
+                #     current_lr = group["lr"]
 
-                # Print the diagnostics for each epoch.
-                print(f"Epoch {epoch} with "
-                    f"mb {global_minibatch_counter} "
-                    f"lr {current_lr:.15f}: "
-                    f"t_loss: {train_loss:.4f} "
-                    f"t_acc: {train_acc:.4f} "
-                    f"v_loss: {val_loss:.4f} "
-                    f"v_acc: {val_acc:.4f}\n")
+                # # Print the diagnostics for each epoch.
+                # print(f"Epoch {epoch} with "
+                #     f"mb {global_minibatch_counter} "
+                #     f"lr {current_lr:.15f}: "
+                #     f"t_loss: {train_loss:.4f} "
+                #     f"t_acc: {train_acc:.4f} "
+                #     f"v_loss: {val_loss:.4f} "
+                #     f"v_acc: {val_acc:.4f}\n")
 
         scheduler.step()
 
@@ -373,7 +399,7 @@ def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
           f"{(time.time() - since) // 60:.2f} minutes")
 
 
-def train_resnet_with_gradients(
+def train_resnet_with_grads_no_update(
         train_folder: Path, batch_size: int, num_workers: int,
         device: torch.device, classes: List[str], learning_rate: float,
         weight_decay: float, learning_rate_decay: float,
@@ -382,35 +408,8 @@ def train_resnet_with_gradients(
         color_jitter_hue: float, color_jitter_saturation: float,
         path_mean: List[float], path_std: List[float], num_classes: int,
         num_layers: int, pretrain: bool, checkpoints_folder: Path,
-        num_epochs: int, save_interval: int) -> None:
-    """
-    Main function for training ResNet.
-    Args:
-        train_folder: Location of the automatically built training input folder.
-        batch_size: Mini-batch size to use for training.
-        num_workers: Number of workers to use for IO.
-        device: Device to use for running model.
-        classes: Names of the classes in the dataset.
-        learning_rate: Learning rate to use for gradient descent.
-        weight_decay: Weight decay (L2 penalty) to use in optimizer.
-        learning_rate_decay: Learning rate decay amount per epoch.
-        resume_checkpoint: Resume model from checkpoint file.
-        resume_checkpoint_path: Path to the checkpoint file for resuming training.
-        log_csv: Name of the CSV file containing the logs.
-        training_order_csv: Name of the CSV file with the order of training examples.
-        color_jitter_brightness: Random brightness jitter to use in data augmentation for ColorJitter() transform.
-        color_jitter_contrast: Random contrast jitter to use in data augmentation for ColorJitter() transform.
-        color_jitter_hue: Random hue jitter to use in data augmentation for ColorJitter() transform.
-        color_jitter_saturation: Random saturation jitter to use in data augmentation for ColorJitter() transform.
-        path_mean: Means of the WSIs for each dimension.
-        path_std: Standard deviations of the WSIs for each dimension.
-        num_classes: Number of classes in the dataset.
-        num_layers: Number of layers to use in the ResNet model from [18, 34, 50, 101, 152].
-        pretrain: Use pretrained ResNet weights.
-        checkpoints_folder: Directory to save model checkpoints to.
-        num_epochs: Number of epochs for training.
-        save_interval: Number of epochs between saving checkpoints.
-    """
+        num_epochs: int, save_interval: int, grad_csv: Path) -> None:
+
     # Loading in the data.
     data_transforms = get_data_transforms(
         color_jitter_brightness=color_jitter_brightness,
@@ -485,37 +484,21 @@ def train_resnet_with_gradients(
 
         with train_order_csv.open(mode="w") as train_order_writer:
             # Train the model.
-            train_helper_with_gradients(model=model,
-                        dataloaders=dataloaders,
-                        dataset_sizes=dataset_sizes,
-                        criterion=nn.CrossEntropyLoss(),
-                        optimizer=optimizer,
-                        scheduler=scheduler,
-                        start_epoch=start_epoch,
-                        writer=writer,
-                        train_order_writer=train_order_writer,
-                        batch_size=batch_size,
-                        checkpoints_folder=checkpoints_folder,
-                        device=device,
-                        num_layers=num_layers,
-                        save_interval=save_interval,
-                        num_epochs=num_epochs,
-                        classes=classes,
-                        num_classes=num_classes)
-
-
-###########################################
-#      MAIN EVALUATION FUNCTION           #
-###########################################
-
-
-def parse_val_acc(model_path: Path) -> float:
-    """
-    Parse the validation accuracy from the filename.
-    Args:
-        model_path: The model path to parse for the validation accuracy.
-    Returns:
-        The parsed validation accuracy.
-    """
-    return float(
-        f"{('.'.join(model_path.name.split('.')[:-1])).split('_')[-1][2:]}")
+            train_helper_with_gradients_no_update(  model=model,
+                                                    dataloaders=dataloaders,
+                                                    dataset_sizes=dataset_sizes,
+                                                    criterion=nn.CrossEntropyLoss(),
+                                                    optimizer=optimizer,
+                                                    scheduler=scheduler,
+                                                    start_epoch=start_epoch,
+                                                    writer=writer,
+                                                    train_order_writer=train_order_writer,
+                                                    batch_size=batch_size,
+                                                    checkpoints_folder=checkpoints_folder,
+                                                    device=device,
+                                                    num_layers=num_layers,
+                                                    save_interval=save_interval,
+                                                    num_epochs=num_epochs,
+                                                    classes=classes,
+                                                    num_classes=num_classes,
+                                                    grad_csv=grad_csv)

@@ -73,6 +73,26 @@ def calculate_confusion_matrix(all_labels: np.ndarray,
     print(cm)
 
 
+class Random90Rotation:
+    def __init__(self, degrees: Tuple[int] = None) -> None:
+        """
+        Randomly rotate the image for training. Credits to Naofumi Tomita.
+        Args:
+            degrees: Degrees available for rotation.
+        """
+        self.degrees = (0, 90, 180, 270) if (degrees is None) else degrees
+
+    def __call__(self, im: Image) -> Image:
+        """
+        Produces a randomly rotated image every time the instance is called.
+        Args:
+            im: The image to rotate.
+        Returns:    
+            Randomly rotated image.
+        """
+        return im.rotate(angle=random.sample(population=self.degrees, k=1)[0])
+
+
 def create_model(num_layers: int, num_classes: int,
                  pretrain: bool) -> torchvision.models.resnet.ResNet:
     """
@@ -120,6 +140,13 @@ def get_data_transforms(color_jitter_brightness: float,
         "train":
         transforms.Compose(transforms=[
             transforms.Resize((224, 224)),
+            # transforms.ColorJitter(brightness=color_jitter_brightness,
+            #                        contrast=color_jitter_contrast,
+            #                        saturation=color_jitter_saturation,
+            #                        hue=color_jitter_hue),
+            # transforms.RandomHorizontalFlip(),
+            # transforms.RandomVerticalFlip(),
+            # Random90Rotation(),
             transforms.ToTensor(),
             transforms.Normalize(mean=path_mean, std=path_std)
         ]),
@@ -171,29 +198,13 @@ def print_params(train_folder: Path, num_epochs: int, num_layers: int,
           f"log_csv: {log_csv}\n"
           f"train_order_csv: {train_order_csv}\n\n")
 
-def get_grad_magnitude(model, special_layer_nums = [0, 60, 1, 20, 40, 59]):
-    params = list(model.parameters())
-    layer_num_to_mag = {}
-    total_mag = 0
-    for layer_num, param in enumerate(params):
-        layer_mag = np.sum(param.grad.detach().cpu().numpy()**2)
-
-        if layer_num not in special_layer_nums:
-            total_mag += layer_mag
-        elif layer_num in special_layer_nums:
-            layer_num_to_mag[layer_num] = layer_mag
-    layer_num_to_mag[-1] = total_mag
-    return layer_num_to_mag
-
-def get_image_name(image_path):
-    return '/'.join(image_path.split('/')[-2:])
 
 ###########################################
 #          MAIN TRAIN FUNCTION            #
 ###########################################
 
 
-def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
+def train_helper(model: torchvision.models.resnet.ResNet,
                  dataloaders: Dict[str, torch.utils.data.DataLoader],
                  dataset_sizes: Dict[str, int],
                  criterion: torch.nn.modules.loss, optimizer: torch.optim,
@@ -202,6 +213,27 @@ def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
                  batch_size: int, save_interval: int, checkpoints_folder: Path,
                  num_layers: int, classes: List[str],
                  num_classes: int) -> None:
+    """
+    Function for training ResNet.
+    Args:
+        model: ResNet model for training.
+        dataloaders: Dataloaders for IO pipeline.
+        dataset_sizes: Sizes of the training and validation dataset.
+        criterion: Metric used for calculating loss.
+        optimizer: Optimizer to use for gradient descent.
+        scheduler: Scheduler to use for learning rate decay.
+        start_epoch: Starting epoch for training.
+        writer: Writer to write logging information.
+        train_order_writer: Writer to write the order of training examples.
+        device: Device to use for running model.
+        num_epochs: Total number of epochs to train for.
+        batch_size: Mini-batch size to use for training.
+        save_interval: Number of epochs between saving checkpoints.
+        checkpoints_folder: Directory to save model checkpoints to.
+        num_layers: Number of layers to use in the ResNet model from [18, 34, 50, 101, 152].
+        classes: Names of the classes in the dataset.
+        num_classes: Number of classes in the dataset.
+    """
     since = time.time()
 
     # Initialize all the tensors to be used in training and validation.
@@ -218,11 +250,8 @@ def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
 
     global_minibatch_counter = 0
 
-    mag_writer = open("mags_resnet18_imagenet.csv", "w")
-    mag_writer.write("image_name,train_loss,layers_-1,layer_0,layer_60,layer_1,layer_20,layer_40,layer_59,conf,correct\n")
-
     # Train for specified number of epochs.
-    for epoch in range(start_epoch, num_epochs):
+    for epoch in range(0, num_epochs):
 
         # Training phase.
         model.train(mode=True)
@@ -240,31 +269,11 @@ def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
             # Forward and backpropagation.
             with torch.set_grad_enabled(mode=True):
                 train_outputs = model(train_inputs)
-                confs, train_preds = torch.max(train_outputs, dim=1)
+                __, train_preds = torch.max(train_outputs, dim=1)
                 train_loss = criterion(input=train_outputs,
                                        target=train_labels)
-                train_loss.backward(retain_graph=True)
+                train_loss.backward()
                 optimizer.step()
-
-                batch_grads = torch.autograd.grad(train_loss, model.parameters(), retain_graph=True)
-                # print(len(batch_grads))
-                # for batch_grad in batch_grads:
-                #     print(batch_grad.size())
-
-                train_loss_npy = float(train_loss.detach().cpu().numpy())
-                layer_num_to_mag = get_grad_magnitude(model)
-                image_name = get_image_name(paths[0])
-                conf = float(confs.detach().cpu().numpy())
-                train_pred = int(train_preds.detach().cpu().numpy()[0])
-                gt_label = int(train_labels.detach().cpu().numpy()[0])
-                correct = 0
-                if train_pred == gt_label:
-                    correct = 1
-
-                output_line = f"{image_name},{train_loss_npy:.4f},{layer_num_to_mag[-1]:.4f},{layer_num_to_mag[0]:.4f},{layer_num_to_mag[60]:.4f},{layer_num_to_mag[1]:.4f},{layer_num_to_mag[20]:.4f},{layer_num_to_mag[40]:.4f},{layer_num_to_mag[59]:.4f},{conf:.4f},{correct}\n"
-                mag_writer.write(output_line)
-                print(idx, output_line)
-                # print(idx, image_name, train_loss_npy, conf, train_pred, gt_label)
 
             # Update training diagnostics.
             train_running_loss += train_loss.item() * train_inputs.size(0)
@@ -279,7 +288,10 @@ def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
             global_minibatch_counter += 1
             epoch_minibatch_counter += 1
 
-            if global_minibatch_counter % 1000 == 0:
+            # for path in paths: #write the order that the model was trained in
+            #     train_order_writer.write("/".join(path.split("/")[-2:]) + "\n")
+
+            if global_minibatch_counter % 10 == 0 or global_minibatch_counter == 5:
 
                 calculate_confusion_matrix(all_labels=train_all_labels.numpy(),
                                         all_predicts=train_all_predicts.numpy(),
@@ -331,7 +343,7 @@ def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
                     torch.cuda.empty_cache()
 
                 # Remaining things related to training.
-                if global_minibatch_counter % 200000 == 0 or global_minibatch_counter == 5:
+                if global_minibatch_counter % 10 == 0 or global_minibatch_counter == 5:
                     epoch_output_path = checkpoints_folder.joinpath(
                         f"resnet{num_layers}_e{epoch}_mb{global_minibatch_counter}_va{val_acc:.5f}.pt")
 
@@ -373,7 +385,7 @@ def train_helper_with_gradients(model: torchvision.models.resnet.ResNet,
           f"{(time.time() - since) // 60:.2f} minutes")
 
 
-def train_resnet_with_gradients(
+def train_resnet(
         train_folder: Path, batch_size: int, num_workers: int,
         device: torch.device, classes: List[str], learning_rate: float,
         weight_decay: float, learning_rate_decay: float,
@@ -422,7 +434,7 @@ def train_resnet_with_gradients(
 
     image_datasets = {
         "train": ImageFolderWithPaths(root=str(train_folder.joinpath("train")), transform=data_transforms["train"]),
-        "val": ImageFolderWithPaths(root=str(train_folder.joinpath("val")), transform=data_transforms["val"])
+        "val": ImageFolderWithPaths(root=str(train_folder.joinpath("val")), transform=data_transforms["val"]),
     }
 
     dataloaders = {
@@ -439,7 +451,7 @@ def train_resnet_with_gradients(
           f"num val images {len(dataloaders['val']) * batch_size}\n"
           f"CUDA is_available: {torch.cuda.is_available()}")
 
-    model = create_model(num_classes=num_classes,
+    model = create_model(num_classes=4,
                          num_layers=num_layers,
                          pretrain=pretrain)
     model = model.to(device=device)
@@ -453,12 +465,15 @@ def train_resnet_with_gradients(
     if resume_checkpoint:
         ckpt = torch.load(f=resume_checkpoint_path)
         model.load_state_dict(state_dict=ckpt["model_state_dict"])
+        # num_ftrs = model.fc.in_features
+        # model.fc = nn.Linear(num_ftrs, 2)
         optimizer.load_state_dict(state_dict=ckpt["optimizer_state_dict"])
         scheduler.load_state_dict(state_dict=ckpt["scheduler_state_dict"])
         start_epoch = ckpt["epoch"]
         print(f"model loaded from {resume_checkpoint_path}")
     else:
         start_epoch = 0
+
 
     # Print the model hyperparameters.
     print_params(batch_size=batch_size,
@@ -485,7 +500,7 @@ def train_resnet_with_gradients(
 
         with train_order_csv.open(mode="w") as train_order_writer:
             # Train the model.
-            train_helper_with_gradients(model=model,
+            train_helper(model=model,
                         dataloaders=dataloaders,
                         dataset_sizes=dataset_sizes,
                         criterion=nn.CrossEntropyLoss(),
@@ -519,3 +534,96 @@ def parse_val_acc(model_path: Path) -> float:
     """
     return float(
         f"{('.'.join(model_path.name.split('.')[:-1])).split('_')[-1][2:]}")
+
+def get_predictions(patches_eval_folder: Path, output_folder: Path,
+                    checkpoints_folder: Path, auto_select: bool,
+                    eval_model: Path, device: torch.device, classes: List[str],
+                    num_classes: int, path_mean: List[float],
+                    path_std: List[float], num_layers: int, pretrain: bool,
+                    batch_size: int, num_workers: int) -> None:
+    """
+    Main function for running the model on all of the generated patches.
+    Args:
+        patches_eval_folder: Folder containing patches to evaluate on.
+        output_folder: Folder to save the model results to.
+        checkpoints_folder: Directory to save model checkpoints to.
+        auto_select: Automatically select the model with the highest validation accuracy,
+        eval_model: Path to the model with the highest validation accuracy.
+        device: Device to use for running model.
+        classes: Names of the classes in the dataset.
+        num_classes: Number of classes in the dataset.
+        path_mean: Means of the WSIs for each dimension.
+        path_std: Standard deviations of the WSIs for each dimension.
+        num_layers: Number of layers to use in the ResNet model from [18, 34, 50, 101, 152].
+        pretrain: Use pretrained ResNet weights.
+        batch_size: Mini-batch size to use for training.
+        num_workers: Number of workers to use for IO.
+    """
+    # Initialize the model.
+    model_path = get_best_model(checkpoints_folder=checkpoints_folder) if auto_select else eval_model
+
+    model = create_model(num_classes=num_classes, num_layers=num_layers, pretrain=pretrain)
+    ckpt = torch.load(f=model_path)
+    model.load_state_dict(state_dict=ckpt["model_state_dict"])
+    model = model.to(device=device)
+
+    model.train(mode=False)
+    print(f"model loaded from {model_path}")
+
+    # For outputting the predictions.
+    class_num_to_class = {i: classes[i] for i in range(num_classes)}
+
+    start = time.time()
+    # patches_eval_folder
+
+    # Where we want to write out the predictions.
+    # Confirm the output directory exists.
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    # image_dataset = ImageFolderWithPaths(root=str(train_folder.joinpath(x)), transform=data_transforms[x])
+
+    # dataloaders = {
+    #     x: torch.utils.data.DataLoader(dataset=image_datasets[x],
+    #                                    batch_size=batch_size,
+    #                                    shuffle=(x is "train"),
+    #                                    num_workers=num_workers)
+    #     for x in ("train", "val")
+    # }
+
+    # Load the image dataset.
+    dataloader = torch.utils.data.DataLoader(
+        dataset=ImageFolderWithPaths(root=str(patches_eval_folder),
+            transform=transforms.Compose(transforms=[
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=path_mean, std=path_std)
+            ])),
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers)
+
+    num_test_image_windows = len(dataloader) * batch_size
+
+    print(f"testing on {num_test_image_windows} crops from {patches_eval_folder}")
+
+    test_label_to_class = {0:"0", 1:"180", 2:"270", 3:"90"}
+
+    with output_folder.joinpath(f"train_preds.csv").open(mode="w") as writer:
+
+        writer.write("image_name,prediction,confidence\n")
+
+        # Loop through all of the patches.
+        for batch_num, (test_inputs, test_labels, paths) in enumerate(dataloader):
+
+            confidences, test_preds = torch.max(nn.Softmax(dim=1)(model(test_inputs.to(device=device))), dim=1)
+            
+            for i in range(test_preds.shape[0]):
+                # Find coordinates and predicted class.
+                image_name = "/".join(paths[i].split('/')[-2:])
+
+                # print(f"{','.join([image_name, f'{class_num_to_class[test_preds[i].data.item()]}', f'{confidences[i].data.item():.5f}'])}\n")
+                writer.write(
+                    f"{','.join([image_name, f'{class_num_to_class[test_preds[i].data.item()]}', f'{confidences[i].data.item():.5f}'])}\n"
+                )
+
+    print(f"time for {patches_eval_folder}: {time.time() - start:.2f} seconds")
